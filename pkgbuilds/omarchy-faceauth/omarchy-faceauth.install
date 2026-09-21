@@ -1,0 +1,32 @@
+# Installing the package never touches /etc/pam.d. Wiring is the explicit,
+# opt-in `omarchy setup security face`; teardown always clears PAM.
+
+post_install() {
+  cat <<'EOF'
+omarchy-faceauth is installed but not wired into anything.
+  omarchy setup security face     fetch the models, enrol, verify, then wire PAM
+  faceauth doctor                 state of every part, with stable check ids
+Templates live in /var/lib/faceauth (root, 0600) and are plaintext at rest until
+TPM sealing lands. Nothing runs until the service is enabled by setup.
+EOF
+}
+
+post_upgrade() {
+  if systemctl is-active --quiet faceauth.service; then
+    systemctl restart faceauth.service
+  fi
+}
+
+pre_remove() {
+  # PAM must never reference a module that is about to disappear.
+  for f in /etc/pam.d/sudo /etc/pam.d/polkit-1; do
+    if [ -f "$f" ] && grep -q pam_faceauth.so "$f"; then
+      echo "warning: $f still references pam_faceauth.so; removing the line (backup in /var/backups/faceauth)"
+      install -dm700 /var/backups/faceauth
+      cp -p "$f" "/var/backups/faceauth/$(basename "$f").pre-remove"
+      sed -i '/pam_faceauth\.so/d' "$f"
+    fi
+  done
+  rm -f /etc/pam.d/omarchy-lock-face
+  systemctl disable --now faceauth.service 2>/dev/null || true
+}
