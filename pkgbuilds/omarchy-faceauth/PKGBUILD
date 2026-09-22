@@ -1,0 +1,57 @@
+# Maintainer: Michael Ellis <mej2200@gmail.com>
+
+pkgname=omarchy-faceauth
+pkgver=0.1.1
+pkgrel=1
+pkgdesc='Face authentication for Omarchy with the IR camera: daemon, PAM module and CLI'
+arch=('x86_64')
+url='https://github.com/mellismas/omarchy-faceauth'
+license=('MIT')
+install='omarchy-faceauth.install'
+options=('!debug')
+# onnxruntime-cpu is loaded at run time from /usr/lib/libonnxruntime.so; curl
+# and coreutils fetch and verify the models; systemd-creds and tpm2-tss seal
+# the templates to the TPM; acl opens the daemon's socket to the enrolled users.
+depends=(
+  'onnxruntime-cpu'
+  'pam'
+  'curl'
+  'coreutils'
+  'systemd'
+  'tpm2-tss'
+  'acl'
+)
+makedepends=('rust' 'cargo')
+optdepends=('linux-omarchy: concurrent IR+RGB capture and the IR illuminator on Intel IPU3 laptops')
+backup=('etc/faceauth/config.toml')
+# The model weights (about 260 MB) are not in the package: models.toml names
+# them with checksums and `faceauth models fetch` verifies them at setup.
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "$srcdir/$pkgname-$pkgver"
+  export CARGO_TARGET_DIR=target
+  cargo build --release --locked
+}
+
+check() {
+  cd "$srcdir/$pkgname-$pkgver"
+  cargo test --release --locked
+}
+
+package() {
+  cd "$srcdir/$pkgname-$pkgver"
+  install -Dm755 target/release/faceauthd "$pkgdir/usr/bin/faceauthd"
+  install -Dm755 target/release/faceauth "$pkgdir/usr/bin/faceauth"
+  install -Dm755 packaging/faceauth-lock-session "$pkgdir/usr/bin/faceauth-lock-session"
+  install -Dm755 target/release/libpam_faceauth.so "$pkgdir/usr/lib/security/pam_faceauth.so"
+  install -Dm644 packaging/faceauth.service "$pkgdir/usr/lib/systemd/system/faceauth.service"
+  install -Dm644 packaging/config.toml "$pkgdir/etc/faceauth/config.toml"
+  install -Dm644 models.toml "$pkgdir/usr/share/faceauth/models.toml"
+  install -dm755 "$pkgdir/usr/share/faceauth/models"
+  install -dm700 "$pkgdir/var/lib/faceauth"
+  install -Dm644 packaging/pam-example.txt "$pkgdir/usr/share/doc/$pkgname/pam-example.txt"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

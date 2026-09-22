@@ -1,0 +1,22 @@
+# Installing the package touches nothing in /etc/pam.d: wiring is the opt-in
+# `omarchy setup security face`, and `omarchy remove security face` takes the
+# PAM services out before dropping the package.
+
+post_install() {
+  cat <<'EOT'
+omarchy-faceauth is installed but not wired into anything.
+  omarchy setup security face     fetch the models, enrol, verify, then wire PAM
+  faceauth doctor                 the state of every part
+Nothing runs until the service is enabled by setup.
+EOT
+}
+
+post_upgrade() {
+  if systemctl is-active --quiet faceauth.service; then
+    systemctl restart faceauth.service
+  fi
+}
+
+pre_remove() {
+  systemctl disable --now faceauth.service 2>/dev/null || true
+}
