@@ -4,8 +4,10 @@
 
 post_install() {
   cat <<'EOT'
-omarchy-faceauth is installed but not wired into anything.
-  omarchy setup security face     fetch the models, enrol, verify, then wire PAM
+omarchy-faceauth is installed but not wired into PAM, and the service is off.
+The one thing in effect now is the udev rule: the IR sensor's control node
+(exposure, gain, strobe) is root-only; the RGB webcam is untouched.
+  omarchy setup security face     check the camera, enrol, verify, then wire PAM
   faceauth doctor                 the state of every part
 Nothing runs until the service is enabled by setup.
 EOT
@@ -16,5 +18,17 @@ EOT
 # restarts the service after the reload.
 
 pre_remove() {
+  # A bare pacman -R under a wired stack leaves every sudo, polkit and
+  # lock-screen attempt loading a module that is gone: the password paths
+  # still work, but each attempt logs the failure and the lock screen keeps
+  # retrying its face lane. The PAM files belong to other packages, so they
+  # are not edited from here; the Omarchy removal takes the lines out.
+  if grep -qs 'pam_faceauth\.so' /etc/pam.d/*; then
+    cat <<'EOT'
+/etc/pam.d still names pam_faceauth.so. Run `omarchy remove security face`
+to take face authentication out of PAM; until then sudo, polkit and the lock
+screen fall to the password after a failed module load on every attempt.
+EOT
+  fi
   systemctl disable --now faceauth.service 2>/dev/null || true
 }
