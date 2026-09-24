@@ -26,8 +26,13 @@ optdepends=('linux-omarchy: concurrent IR+RGB capture and the IR illuminator on 
 backup=('etc/faceauth/config.toml')
 # The model weights (about 260 MB) are not in the package: models.toml names
 # them with checksums and `faceauth models fetch` verifies them at setup.
-source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"
+        'omarchy-faceauth.hook')
+# The tarball sum is a placeholder until the v0.1.1 tag is cut; it is pinned
+# with `updpkgsums` at that tag before the recipe is submitted. Under SKIP,
+# `makepkg --verifysource` checks nothing.
+sha256sums=('SKIP'
+            '52734884a8f6a6e8ac135a1194d87a2e5c6cc081e2b2af8b4f83fb61c77b2a00')
 
 build() {
   cd "$srcdir/$pkgname-$pkgver"
@@ -37,7 +42,16 @@ build() {
 
 check() {
   cd "$srcdir/$pkgname-$pkgver"
+  # The sealing test needs a TPM and root, so a packaged build cannot test
+  # sealing and a passing check() is not evidence that templates seal. Where
+  # the build machine has a TPM resource manager the test is made mandatory,
+  # so a sealing failure is a build failure there rather than a skipped test.
+  if [ -e /dev/tpmrm0 ]; then
+    export FACEAUTH_REQUIRE_TPM=1
+  fi
   cargo test --release --locked
+  # The lock helper is shell; its test stubs systemd-run and needs no session.
+  bash tests/lock-session-test.sh
 }
 
 package() {
@@ -47,6 +61,10 @@ package() {
   install -Dm755 packaging/faceauth-lock-session "$pkgdir/usr/bin/faceauth-lock-session"
   install -Dm755 target/release/libpam_faceauth.so "$pkgdir/usr/lib/security/pam_faceauth.so"
   install -Dm644 packaging/faceauth.service "$pkgdir/usr/lib/systemd/system/faceauth.service"
+  # Keeps the IR sensor's control node root-only; the RGB webcam is untouched.
+  install -Dm644 packaging/72-faceauth-ir.rules "$pkgdir/usr/lib/udev/rules.d/72-faceauth-ir.rules"
+  # Restarts the daemon after an upgrade, once pacman has reloaded the units.
+  install -Dm644 "$srcdir/omarchy-faceauth.hook" "$pkgdir/usr/share/libalpm/hooks/90-omarchy-faceauth-restart.hook"
   install -Dm644 packaging/config.toml "$pkgdir/etc/faceauth/config.toml"
   install -Dm644 models.toml "$pkgdir/usr/share/faceauth/models.toml"
   install -dm755 "$pkgdir/usr/share/faceauth/models"

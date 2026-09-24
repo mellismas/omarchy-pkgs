@@ -11,11 +11,9 @@ Nothing runs until the service is enabled by setup.
 EOT
 }
 
-post_upgrade() {
-  if systemctl is-active --quiet faceauth.service; then
-    systemctl restart faceauth.service
-  fi
-}
+# No post_upgrade: a restart from here would run before pacman's
+# daemon-reload hook and start the old unit. 90-omarchy-faceauth-restart.hook
+# restarts the service after the reload.
 
 pre_remove() {
   systemctl disable --now faceauth.service 2>/dev/null || true

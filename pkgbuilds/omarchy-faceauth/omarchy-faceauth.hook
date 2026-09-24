@@ -1,0 +1,13 @@
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = omarchy-faceauth
+
+[Action]
+Description = Restarting faceauth.service on the new unit and binaries...
+When = PostTransaction
+# Pacman runs hooks in file-name order, so this one is installed as
+# 90-omarchy-faceauth-restart.hook: after 30-systemd-daemon-reload-system.hook
+# has reloaded the unit files, so the restart picks up a changed unit, not the
+# old one. try-restart leaves a stopped or disabled service alone.
+Exec = /usr/bin/systemctl try-restart faceauth.service
