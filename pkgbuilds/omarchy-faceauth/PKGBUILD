@@ -39,7 +39,7 @@ optdepends=('curl: faceauth models fetch, a developer command that downloads the
 backup=('etc/faceauth/config.toml')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"
         'omarchy-faceauth.hook')
-sha256sums=('b3af4ac04396f421d0ffb179122bf6893479de99add7c82440b98ab2d7109cff'
+sha256sums=('76340eb7b20e21ba484a26054556e7a43c30b44eb16f6d0a3852e0737ab6bb97'
             '8172fd87ac7f252d4ebea9fea8d7d992e3c0a8caaa6e9e3b491b8f4c99bd6729')
 
 prepare() {
