@@ -72,16 +72,39 @@ uses it. The Omarchy dev pair uses `{version}.r{count}.g{commit:.7}` instead
 because its published history counted every commit and the number must never
 go down.
 
-`min_release_age` on a branch watch selects the newest commit that has been on
-the branch for at least that long, so a burst of pushes builds once after it
-settles rather than once per push. `BYPASS_MIN_RELEASE_AGE=1` takes the tip.
+`min_release_age` holds a branch tip until its commit timestamp is old enough.
+A fresh tip leaves the existing pin alone; the watch never walks backward to
+an older commit. This uses Git's committer date, not the time a commit was
+pushed. `BYPASS_MIN_RELEASE_AGE=1` bypasses the hold.
 
 Packages marked `"auto_merge": true` ride the unattended lane
 (`track-branches.yml`) instead of the reviewed sync PR: their bump PR is opened
 and auto-merged as soon as the build checks pass. `bin/sync-upstream --lane
 reviewed|auto-merge|all` selects a lane; the scheduled workflows each pass their
 own. Packages that pin the same branch move in lockstep: if one of them fails
-to update, the run restores the others and reports the group as failed.
+to update, the run restores the others and reports the group as failed. A
+targeted sync includes the other packages watching that branch, so requesting
+only `omarchy-dev` also updates `omarchy-settings-dev`.
+
+### Enable unattended branch updates
+
+The schedule already runs in GitHub Actions; no server cron job is needed.
+It uses a personal access token so its PRs trigger builds and its merges trigger
+publishing without manual approval. No GitHub App is required.
+
+1. Use a fine-grained PAT with access to **omacom/omarchy-pkgs** and repository
+   **Contents: Read and write** and **Pull requests: Read and write** permissions.
+   Its owner must be trusted by the build workflow (for example, a collaborator).
+   The existing controller PAT can be reused when it has these permissions.
+2. In the repository's
+   [Actions secrets](https://github.com/omacom/omarchy-pkgs/settings/secrets/actions),
+   save the PAT as `PKGS_BOT_TOKEN`. Update this secret when the token is rotated
+   or expires. The built-in Actions `GITHUB_TOKEN` cannot run this unattended chain.
+3. Keep **Allow auto-merge** enabled and require `result`, `self-tests`, and
+   `build-isolation` on `master`; the tracker does not request a protection bypass.
+4. After merging the tracker, run **Track upstream branches** once from Actions
+   to verify that its PR builds, auto-merges, and starts **Publish merged packages**.
+   Subsequent runs happen every two hours.
 
 Checksums retain their algorithms (SHA256, SHA512, BLAKE2, etc.) and source order.
 Changed git sources are hashed with makepkg's git-archive convention. Unchanged
@@ -203,6 +226,8 @@ in `origin` and has no effect on release selection.
 These packages were already excluded from automatic AUR updates. The migration preserves that policy.
 
 `linux-firmware-cirrus` is a deliberate hold: a self-retiring shim that ships Arch's linux-firmware-cirrus 20260910-2 payload to stable while stable's Arch snapshot is on 20260810-2 (Dell XPS 13 DX13260 / 1028:0e54 speaker firmware). It is versioned 20260810-3 so the genuine Arch package supersedes it as soon as the snapshot advances; bumping it to the Arch version would defeat that. Delete the recipe once stable's snapshot carries linux-firmware >= 20260910.
+
+`m1n1-aurora` and `uboot-asahi` are deliberate holds: Apple Silicon boot code, pinned by hand like `linux-aurora`, and bumped only after a cold boot on the qualification Macs. `m1n1-aurora` pins an aurora-silicon/m1n1 commit plus a local patch. `uboot-asahi` follows asahi-alarm's recipe and patch set (asahi-alarm/PKGBUILDs), which a tag watch on AsahiLinux/u-boot cannot carry.
 
 ## Package-specific boundaries
 

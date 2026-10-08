@@ -158,17 +158,22 @@ set_pkgbuild_array() {
 
   local rewritten="$TEMP_DIR/pkgbuild-rewritten"
   if ! awk -v prefix="${name}=(" -v block="$block" '
+    # The code on a line, minus any comment. Checksum arrays hold quoted hex
+    # (or SKIP), so a "#" can only ever start a comment here.
+    function code(s) { sub(/#.*/, "", s); return s }
     !replaced && index($0, prefix) == 1 {
       while ((getline line < block) > 0) print line
       close(block)
       replaced = 1
       # A ")" anywhere past the opening closes the array; testing for one at end
       # of line instead would treat a trailing comment as a continuation and eat
-      # every line up to the next ")".
-      if (index(substr($0, length(prefix) + 1), ")") == 0) skipping = 1
+      # every line up to the next ")". A ")" inside a comment -- "# sidecar
+      # (new in v0.7.5)" -- closes nothing, and ending the skip there would
+      # leave the rest of the old array behind a stray ")".
+      if (index(code(substr($0, length(prefix) + 1)), ")") == 0) skipping = 1
       next
     }
-    skipping { if ($0 ~ /\)/) skipping = 0; next }
+    skipping { if (code($0) ~ /\)/) skipping = 0; next }
     { print }
   ' "$pkgbuild" > "$rewritten"; then
     print_error "Failed to rewrite ${name} in $pkgbuild"
@@ -962,6 +967,29 @@ EOF
   vst=0; validate_package_metadata "$npmpkg" >/dev/null || vst=$?
   check "npm declaration validates" "0" "$vst"
 
+  # A ")" in a comment inside a checksum array must not end the rewrite early;
+  # voxtype-bin annotates its arrays with "(new in v0.7.5)" and the like.
+  echo "Checksum array rewrite across commented lines:"
+  local commented="$TEMP_DIR/commented-pkgbuild" sum_c=$(printf 'c%.0s' {1..64})
+  cat > "$commented" <<'EOF'
+sha256sums_x86_64=(
+    # Binaries
+    'aaaa'  # tool
+    # Sidecar (new in v0.7.5)
+    'bbbb'  # sidecar (x86_64)
+)
+sha256sums=( # support files (arch-independent)
+    'dddd'
+)
+package() { :; }
+EOF
+  set_pkgbuild_array "$commented" sha256sums_x86_64 "$sum_c" "$sum_c"
+  set_pkgbuild_array "$commented" sha256sums "$sum_c"
+  check "commented arrays rewrite to valid shell" "0" \
+    "$(bash -n "$commented" 2>/dev/null; echo $?)"
+  check "commented arrays hold only the new checksums" "$sum_c $sum_c|$sum_c|package" \
+    "$(bash -c 'source "$1"; printf "%s|%s|%s" "${sha256sums_x86_64[*]}" "${sha256sums[*]}" "$(declare -F package)"' _ "$commented")"
+
   # End to end over the real mise-bin package: its checked-in metadata and
   # PKGBUILD, the full sync_package path (selection, validation, backstop,
   # rewrite, read-back verification), with only the two network fetches
@@ -1065,11 +1093,12 @@ enforce_branch_lockstep() {
     groups["$key"]+="$package "
   done
   for key in "${!groups[@]}"; do
-    local members commits
+    local members commits pin
     read -r -a members <<<"${groups[$key]}"
     (( ${#members[@]} > 1 )) || continue
     commits=$(for package in "${members[@]}"; do
-      grep -m1 -E '^_commit=' "$PKGBUILDS_DIR/$package/PKGBUILD" | cut -d= -f2- | tr -d "\"'"
+      pin=$(grep -m1 -E '^_commit=' "$PKGBUILDS_DIR/$package/PKGBUILD" | cut -d= -f2- | tr -d "\"'" || true)
+      printf '%s\n' "${pin:-missing:$package}"
     done | sort -u | grep -c .)
     (( commits > 1 )) || continue
     print_error "Lockstep violation on $key: ${members[*]} pin different commits; restoring all of them"
@@ -1087,17 +1116,34 @@ enforce_branch_lockstep() {
 
 sync_in_lane() {
   local package="$1" package_dir="$PKGBUILDS_DIR/$1"
+  snapshot_package "$package"
   if [[ -d "$package_dir" ]] && ! package_in_lane "$package_dir" "$LANE"; then
     print_info "Skipping $package: not in the $LANE lane"
     ((++SKIPPED))
     return 0
   fi
-  snapshot_package "$package"
   sync_package "$package"
 }
 
 if [[ ${#SPECIFIC_PACKAGES[@]} -gt 0 ]]; then
   SPECIFIC_MODE=true
+  # A targeted run is still a branch update: include every sibling watching
+  # the same branch, otherwise the lockstep check never sees the omitted one.
+  declare -A selected=() selected_branches=()
+  for package in "${SPECIFIC_PACKAGES[@]}"; do
+    selected["$package"]=1
+    key=$(branch_watch_key "$PKGBUILDS_DIR/$package" || true)
+    [[ -z "$key" ]] || selected_branches["$key"]=1
+  done
+  for package_dir in "$PKGBUILDS_DIR"/*; do
+    [[ -f "$package_dir/PKGBUILD" ]] || continue
+    package=${package_dir##*/}
+    [[ -z "${selected[$package]:-}" ]] || continue
+    key=$(branch_watch_key "$package_dir" || true)
+    if [[ -n "$key" && -n "${selected_branches[$key]:-}" ]]; then
+      SPECIFIC_PACKAGES+=("$package")
+    fi
+  done
   for package in "${SPECIFIC_PACKAGES[@]}"; do
     sync_in_lane "$package"
   done
