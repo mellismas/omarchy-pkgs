@@ -45,7 +45,7 @@ optdepends=('fprintd: fingerprint authentication through the private PAM helper'
 backup=('etc/faceauth/config.toml')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz"
         'omarchy-faceauth.hook')
-sha256sums=('e52a4a0042a69c67e60addcf76908281e2e3e6d25088fa194f44ec31ed2fd1b8'
+sha256sums=('7f4efd5469f4e8cfacf42f6df7f019136ee8bb32c89d671cba2fe8a2f0a4273a'
             '2c4db594dd64148606d363371a8276182704dd4b9b8d4acfb1cba4240cd9876a')
 
 prepare() {
