@@ -79,18 +79,20 @@ selects a commit from a merged side branch. This uses Git's committer date, not
 the time a commit was pushed, measured from when the run cloned the branch so
 packages pinned from it agree. `BYPASS_MIN_RELEASE_AGE=1` bypasses the hold.
 
-Packages marked `"auto_merge": true` ride the unattended lane
-(`track-branches.yml`), checked hourly instead of every 6 hours. Every lane
-opens its PRs through `package-prs.yml` and auto-merges them as soon as the
-build checks pass. Each package gets its own
-PR on `auto/track-branches-<package>`, and packages that pin the same branch
-share one, so a package whose build fails holds back only itself. The lane works with every
-provider, not only branch watches, so it also carries release feeds trusted to
-ship without review: the browsers, large vendors' apps, Omacom's own projects,
+Packages marked `"auto_merge": true` use the hourly group in
+`sync-upstream.yml`; other packages are checked every 6 hours. Both groups
+open their PRs through `package-prs.yml` and auto-merge them as soon as the
+build checks pass. Hourly packages keep their PRs on
+`auto/track-branches-<package>`; the others use `auto/sync-upstream-<package>`.
+Packages that pin the same branch share a PR, so a package whose build fails
+holds back only itself and its branch companions. The hourly group works with
+every provider, not only branch watches, so it also carries release feeds worth
+checking frequently: the browsers, large vendors' apps, Omacom's own projects,
 and vendor binaries that hold fresh releases with `min_release_age`. `bin/sync-upstream --lane
-reviewed|auto-merge|all` selects a lane; the scheduled workflows each pass their
-own. Packages that pin the same branch move in lockstep: if one of them fails
-to update, the run restores the others and reports the group as failed. A
+reviewed|auto-merge|all` selects a lane; the shared workflow passes the lane
+for the triggering schedule. These historical names select cadence, not
+whether the PR auto-merges. Packages that pin the same branch move in lockstep:
+if one of them fails to update, the run restores the others and reports the group as failed. A
 targeted sync includes the other packages watching that branch, so requesting
 only `omarchy-dev` also updates `omarchy-settings-dev`.
 
@@ -109,8 +111,8 @@ publishing without manual approval. No GitHub App is required.
    save the PAT as `PKGS_BOT_TOKEN`. Update this secret when the token is rotated
    or expires. The built-in Actions `GITHUB_TOKEN` cannot run this unattended chain.
 3. Keep **Allow auto-merge** enabled and require `result`, `self-tests`, and
-   `build-isolation` on `master`; the tracker does not request a protection bypass.
-4. After merging the tracker, run **Track upstream branches** once from Actions
+   `build-isolation` on `master`; the updater does not request a protection bypass.
+4. Run **Sync Upstream** once from Actions with `cadence: hourly`
    to verify that its PR builds, auto-merges, and starts **Publish merged packages**.
    Subsequent runs happen hourly.
 
@@ -227,7 +229,7 @@ These packages were already excluded from automatic AUR updates. The migration p
 
 ## How the sync PRs build
 
-`sync-upstream.yml`, `sync-rebuilds.yml` and `track-branches.yml` each run their
+`sync-upstream.yml` (both package groups) and `sync-rebuilds.yml` each run their
 sync once, split the changed recipes into one PR per package with
 `.github/scripts/package-pr-groups.sh`, and hand them to `package-prs.yml`. That
 pushes each PR with the PAT in `PKGS_BOT_TOKEN`, so its builds start without an
