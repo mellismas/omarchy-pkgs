@@ -16,7 +16,9 @@ The models are an `optdepends`, not a `depends`: setup installs this package fir
 
 ## What install changes on its own
 
-One thing: the udev rule `72-faceauth-ir.rules` makes the IR sensor's control node (exposure, gain, strobe) root-only. The RGB webcam is untouched. `post_install` says so, and `pre_remove` warns when a file under `/etc/pam.d` still names the module, since those files belong to other packages and only the Omarchy removal edits them.
+The udev rule `72-faceauth-ir.rules` makes the IR sensor's control node (exposure, gain, strobe) root-only. The RGB webcam is untouched. Pacman's hooks also load the fingerprint D-Bus policy into the running system bus and create the root-only key lease file `/run/faceauth-key.lease`. The mandatory bus policy applies system-wide, including to stock `pam_fprintd` clients: it accepts fingerprint-device signals only from the legitimate `fprintd` bus-name owner. These effects apply even before FaceAuth setup.
+
+Installation does not wire system PAM services, enroll credentials, or enable `faceauth.service`. `post_install` describes the installation effects. `pre_remove` warns when a file under `/etc/pam.d` still names the module, since those files belong to other packages and only the Omarchy removal edits them.
 
 ## The lock helper's path
 

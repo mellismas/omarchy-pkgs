@@ -4,13 +4,15 @@
 
 post_install() {
   cat <<'EOT'
-omarchy-faceauth is installed but not wired into PAM, and the service is off.
-The one thing in effect now is the udev rule: the IR sensor's control node
-(exposure, gain, strobe) is root-only; the RGB webcam is untouched.
+omarchy-faceauth is installed. This package does not wire PAM or enable its service.
+Installation makes the IR sensor's control node (exposure, gain, strobe)
+root-only; the RGB webcam is untouched. The fingerprint D-Bus policy takes
+effect system-wide, including for stock pam_fprintd clients. Installation
+also creates the root-only key lease file /run/faceauth-key.lease.
   omarchy setup security face     check the camera, add the models, enrol,
                                   verify, then wire PAM
   faceauth doctor                 the state of every part
-Nothing runs until the service is enabled by setup.
+Setup enables the FaceAuth service after checking and configuring authentication.
 EOT
 }
 
