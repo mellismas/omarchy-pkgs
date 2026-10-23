@@ -1,0 +1,16 @@
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = omarchy-faceauth
+
+[Action]
+Description = Restarting faceauth.service on the new unit and binaries...
+When = PostTransaction
+# Pacman runs hooks in file-name order, so this one is installed as
+# 90-omarchy-faceauth-restart.hook: after 30-systemd-daemon-reload-system.hook
+# has reloaded the unit files, so the restart picks up a changed unit, not the
+# old one. Arch's systemd-hook script keeps a restart operation for other
+# packages: it runs try-restart, which leaves a stopped or disabled service
+# alone, and skips an upgrade inside a chroot or an unbooted root instead of
+# failing it.
+Exec = /usr/share/libalpm/scripts/systemd-hook restart faceauth.service
