@@ -22,7 +22,7 @@ Installation does not wire system PAM services, enroll credentials, or enable `f
 
 ## The lock helper's path
 
-The daemon runs the walk-away lock helper, `faceauth-lock-session`, by a fixed path (`LOCK_HELPER` in the daemon source), so a recipe that installs it anywhere else leaves the daemon unable to lock. At v0.1.2 that path is `/usr/lib/faceauth/faceauth-lock-session`, which `package()` matches. The project's `packaging/release-check.sh` reads the constant from the tag and checks the recipe's install line against it, so a release that moves the helper fails the check until the recipe follows.
+The daemon runs the walk-away lock helper, `faceauth-lock-session`, by a fixed path (`LOCK_HELPER` in the daemon source), so a recipe that installs it anywhere else leaves the daemon unable to lock. At v0.1.2 that path is `/usr/lib/faceauth/faceauth-lock-session`, which `package()` matches. The maintainer's private development repository includes `packaging/release-check.sh`, which reads the constant from the tag and checks the recipe's install line against it. For public review, compare `LOCK_HELPER` in `faceauth-daemon/src/presence/lock.rs` with the helper's install destination in this recipe.
 
 ## The restart hook
 
@@ -34,7 +34,7 @@ The daemon runs the walk-away lock helper, `faceauth-lock-session`, by a fixed p
 
 ## Testing
 
-`bash -n` and `makepkg --printsrcinfo` on both recipes; `updpkgsums` at the tag and `makepkg --verifysource` on the pinned sums; `packaging/release-check.sh` in the project tree, which rebuilds GitHub's tarball from the local tag and checks the pin, every file `package()` installs and `check()` runs, the helper path, the model checksums against the models recipe, and both watch patterns.
+Package reviewers can run `bash -n` and `makepkg --printsrcinfo` on both recipes, then `makepkg --verifysource` once the pinned release is published. The maintainer also runs `packaging/release-check.sh` from the private development repository. That private check rebuilds GitHub's tarball from the local tag and checks the pin, every file `package()` installs and `check()` runs, the helper path, the model checksums against the models recipe, and both watch patterns.
 
 ## Security-key and fingerprint helpers
 
